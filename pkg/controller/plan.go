@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/mattn/go-colorable"
 	"github.com/suzuki-shunsuke/go-error-with-exit-code/ecerror"
+	"github.com/suzuki-shunsuke/tfcmt/v4/pkg/config"
 	"github.com/suzuki-shunsuke/tfcmt/v4/pkg/mask"
 	"github.com/suzuki-shunsuke/tfcmt/v4/pkg/notifier"
 	"github.com/suzuki-shunsuke/tfcmt/v4/pkg/platform"
@@ -52,16 +54,44 @@ func (c *Controller) Plan(ctx context.Context, logger *slog.Logger, command Comm
 	setCancel(cmd)
 	_ = cmd.Run()
 
-	return ecerror.Wrap(ntf.Plan(ctx, logger, &notifier.ParamExec{
+	combined := combinedOutput.String()
+	exitCode := cmd.ProcessState.ExitCode()
+
+	notifyErr := ntf.Plan(ctx, logger, &notifier.ParamExec{
 		Stdout:         stdout.String(),
 		Stderr:         stderr.String(),
-		CombinedOutput: combinedOutput.String(),
+		CombinedOutput: combined,
 		CIName:         c.Config.CI.Name,
-		ExitCode:       cmd.ProcessState.ExitCode(),
-	}), cmd.ProcessState.ExitCode())
+		ExitCode:       exitCode,
+	})
+
+	if c.Config.Terraform.Plan.FailWarning.Enable && exitCode == 0 && notifyErr == nil {
+		result := c.Parser.Parse(combined)
+		if hasUnignoredWarnings(result.Warning, c.Config.Terraform.Plan.FailWarning.IgnoreWarnings, c.Config.Vars["target"]) {
+			return ecerror.Wrap(errors.New("terraform plan has warnings"), 1)
+		}
+	}
+
+	return ecerror.Wrap(notifyErr, exitCode)
 }
 
 const waitDelay = 1000 * time.Hour
+
+func hasUnignoredWarnings(warning string, ignoreWarnings []config.IgnoreWarning, target string) bool {
+	warning = strings.TrimSpace(warning)
+	if warning == "" {
+		return false
+	}
+	for _, iw := range ignoreWarnings {
+		if iw.TargetRegexp != nil && !iw.TargetRegexp.MatchString(target) {
+			continue
+		}
+		if iw.WarningRegexp != nil && iw.WarningRegexp.MatchString(warning) {
+			return false
+		}
+	}
+	return true
+}
 
 func setCancel(cmd *exec.Cmd) {
 	cmd.Cancel = func() error {

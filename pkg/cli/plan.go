@@ -29,6 +29,10 @@ func actionPlan(ctx context.Context, logger *slogutil.Logger, args *PlanArgs) er
 		return err
 	}
 
+	if err := cfg.Compile(); err != nil {
+		return err
+	}
+
 	t := &controller.Controller{
 		Config:             cfg,
 		Parser:             terraform.NewPlanParser(),

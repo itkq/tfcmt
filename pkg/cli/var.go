@@ -71,6 +71,10 @@ func parseOptsPlan(args *PlanArgs, cfg *config.Config, envs []string) error { //
 		cfg.Terraform.Plan.IgnoreWarning = args.IgnoreWarning
 	}
 
+	if args.FailWarningCount > 0 {
+		cfg.Terraform.Plan.FailWarning.Enable = args.FailWarning
+	}
+
 	vm := make(map[string]string, len(args.Var))
 	if err := parseVars(args.Var, envs, vm); err != nil {
 		return err

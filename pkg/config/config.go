@@ -62,8 +62,21 @@ type Plan struct {
 	WhenNoChanges       WhenNoChanges       `json:"when_no_changes,omitempty" yaml:"when_no_changes"`
 	WhenPlanError       WhenPlanError       `json:"when_plan_error,omitempty" yaml:"when_plan_error"`
 	WhenParseError      WhenParseError      `json:"when_parse_error,omitempty" yaml:"when_parse_error"`
+	FailWarning         FailWarning         `json:"fail_warning,omitempty" yaml:"fail_warning"`
 	DisableLabel        bool                `json:"disable_label,omitempty" yaml:"disable_label"`
 	IgnoreWarning       bool                `json:"ignore_warning,omitempty" yaml:"ignore_warning"`
+}
+
+type FailWarning struct {
+	IgnoreWarnings []IgnoreWarning `json:"ignore_warnings,omitempty" yaml:"ignore_warnings"`
+	Enable         bool            `json:"enable,omitempty"`
+}
+
+type IgnoreWarning struct {
+	Target        string         `json:"target,omitempty"`
+	Warning       string         `json:"warning,omitempty"`
+	TargetRegexp  *regexp.Regexp `json:"-" yaml:"-"`
+	WarningRegexp *regexp.Regexp `json:"-" yaml:"-"`
 }
 
 // WhenAddOrUpdateOnly is a configuration to notify the plan result contains new or updated in place resources
@@ -130,6 +143,26 @@ func (c *Config) Validate() error {
 
 	if c.CI.SHA == "" && c.CI.PRNumber <= 0 {
 		return errors.New("pull request number or SHA (revision) is needed")
+	}
+	return nil
+}
+
+func (c *Config) Compile() error {
+	for i, iw := range c.Terraform.Plan.FailWarning.IgnoreWarnings {
+		if iw.Target != "" {
+			r, err := regexp.Compile(iw.Target)
+			if err != nil {
+				return fmt.Errorf("compile ignore_warnings[%d].target regexp %q: %w", i, iw.Target, err)
+			}
+			c.Terraform.Plan.FailWarning.IgnoreWarnings[i].TargetRegexp = r
+		}
+		if iw.Warning != "" {
+			r, err := regexp.Compile(iw.Warning)
+			if err != nil {
+				return fmt.Errorf("compile ignore_warnings[%d].warning regexp %q: %w", i, iw.Warning, err)
+			}
+			c.Terraform.Plan.FailWarning.IgnoreWarnings[i].WarningRegexp = r
+		}
 	}
 	return nil
 }

@@ -29,6 +29,8 @@ type PlanArgs struct {
 	SkipNoChangesCount int
 	IgnoreWarning      bool
 	IgnoreWarningCount int
+	FailWarning        bool
+	FailWarningCount   int
 	DisableLabel       bool
 	DisableLabelCount  int
 	Command            string
@@ -140,6 +142,15 @@ $ tfcmt [<global options>] plan [-patch] [-skip-no-changes] -- terraform plan [<
 						Destination: &planArgs.IgnoreWarning,
 						Config: cli.BoolConfig{
 							Count: &planArgs.IgnoreWarningCount,
+						},
+					},
+					&cli.BoolFlag{
+						Name:        "fail-warning",
+						Usage:       "Make tfcmt fail if the result of terraform plan has warnings",
+						Sources:     cli.EnvVars("TFCMT_FAIL_WARNING"),
+						Destination: &planArgs.FailWarning,
+						Config: cli.BoolConfig{
+							Count: &planArgs.FailWarningCount,
 						},
 					},
 					&cli.BoolFlag{
